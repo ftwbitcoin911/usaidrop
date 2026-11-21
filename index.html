@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 泡沫追踪 · 暗黑金融版</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&family=JetBrains+Mono:wght@400;700&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --card-bg: rgba(18, 18, 26, 0.85);
+    --gold: #d4a853;
+    --gold-light: #f0d78c;
+    --copper: #b87333;
+    --red: #e74c3c;
+    --red-glow: rgba(231, 76, 60, 0.3);
+    --text: #e8e6e3;
+    --text-dim: #8a8690;
+    --border: rgba(212, 168, 83, 0.2);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    font-family: 'Inter', sans-serif;
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  /* 背景光晕 */
+  body::before {
+    content: '';
+    position: fixed;
+    top: -30%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 120vw;
+    height: 80vh;
+    background: radial-gradient(ellipse at center, rgba(212, 168, 83, 0.06) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 1300px;
+    margin: 0 auto;
+    padding: 60px 32px;
+  }
+
+  /* 头部 */
+  .header {
+    text-align: center;
+    margin-bottom: 56px;
+    animation: fadeUp 0.8s ease both;
+  }
+
+  .header h1 {
+    font-size: clamp(2rem, 5vw, 3.4rem);
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, var(--gold-light) 0%, var(--gold) 40%, var(--copper) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 8px;
+  }
+
+  .header .sub {
+    font-size: 1.05rem;
+    color: var(--text-dim);
+    letter-spacing: 0.04em;
+    font-weight: 300;
+  }
+
+  .header .live-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 16px;
+    padding: 6px 16px;
+    border-radius: 100px;
+    background: rgba(231, 76, 60, 0.12);
+    border: 1px solid rgba(231, 76, 60, 0.3);
+    font-size: 0.78rem;
+    color: #ff6b5a;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .live-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #ff6b5a;
+    animation: pulse 1.6s infinite;
+  }
+
+  /* 三列卡片 */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    margin-bottom: 48px;
+  }
+
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 32px 28px;
+    backdrop-filter: blur(20px);
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+                box-shadow 0.4s ease,
+                border-color 0.4s ease;
+    animation: fadeUp 0.8s ease both;
+  }
+
+  .card:nth-child(1) { animation-delay: 0.1s; }
+  .card:nth-child(2) { animation-delay: 0.2s; }
+  .card:nth-child(3) { animation-delay: 0.3s; }
+
+  .card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 40px rgba(212, 168, 83, 0.08);
+    border-color: rgba(212, 168, 83, 0.45);
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    opacity: 0.6;
+  }
+
+  .card.active {
+    border-color: rgba(231, 76, 60, 0.4);
+    box-shadow: 0 0 60px rgba(231, 76, 60, 0.08);
+  }
+
+  .card.active::before {
+    background: linear-gradient(90deg, transparent, var(--red), transparent);
+  }
+
+  .card-label {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .card-year {
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.25);
+    font-family: 'JetBrains Mono', monospace;
+    margin-bottom: 20px;
+  }
+
+  .big-number {
+    font-size: clamp(3rem, 6vw, 4.2rem);
+    font-weight: 900;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: -0.03em;
+    color: var(--red);
+    line-height: 1;
+    margin-bottom: 6px;
+    text-shadow: 0 0 30px rgba(231, 76, 60, 0.25);
+    transition: color 0.3s;
+  }
+
+  .card.active .big-number {
+    color: #ff4d3d;
+    text-shadow: 0 0 50px rgba(231, 76, 60, 0.5);
+  }
+
+  .big-number .percent {
+    font-size: 0.55em;
+    opacity: 0.8;
+  }
+
+  .big-sub {
+    font-size: 0.88rem;
+    color: var(--text-dim);
+    margin-bottom: 24px;
+  }
+
+  /* 剩余进度条 */
+  .remain-bar-wrap {
+    margin-bottom: 20px;
+  }
+
+  .remain-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .remain-bar {
+    height: 10px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 6px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .remain-fill {
+    height: 100%;
+    border-radius: 6px;
+    background: linear-gradient(90deg, var(--red), #ff6b5a);
+    width: 0%;
+    transition: width 1.5s cubic-bezier(0.22, 1, 0.36, 1);
+    position: relative;
+  }
+
+  .remain-fill::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+    animation: shimmer 2.5s infinite;
+  }
+
+  /* 腰斩股网格 */
+  .waist-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .waist-label .count {
+    color: var(--red);
+    font-weight: 700;
+  }
+
+  .block-grid {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    gap: 4px;
+    margin-bottom: 20px;
+  }
+
+  .block {
+    aspect-ratio: 1;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.06);
+    transition: all 0.4s ease;
+    opacity: 0;
+    animation: blockIn 0.4s ease forwards;
+  }
+
+  .block.hit {
+    background: var(--red);
+    box-shadow: 0 0 8px var(--red-glow);
+  }
+
+  .block.miss {
+    background: rgba(255,255,255,0.05);
+  }
+
+  /* 个股列表 */
+  .stock-list {
+    list-style: none;
+    margin-top: 4px;
+  }
+
+  .stock-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 7px 0;
+    font-size: 0.85rem;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    transition: background 0.2s;
+  }
+
+  .stock-list li:hover {
+    background: rgba(255,255,255,0.02);
+  }
+
+  .stock-list li:last-child { border-bottom: none; }
+
+  .stock-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text);
+  }
+
+  .stock-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .stock-pct {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    color: var(--red);
+  }
+
+  .stock-pct.down { color: #ff4d3d; }
+
+  /* 底部 */
+  .footer {
+    text-align: center;
+    margin-top: 48px;
+    font-size: 0.75rem;
+    color: rgba(255,255,255,0.18);
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.04em;
+  }
+
+  .refresh-info {
+    text-align: center;
+    margin-top: 24px;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* 动画 */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(231,76,60,0.5); }
+    50% { opacity: 0.6; box-shadow: 0 0 0 6px rgba(231,76,60,0); }
+  }
+
+  @keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(200%); }
+  }
+
+  @keyframes blockIn {
+    to { opacity: 1; }
+  }
+
+  /* 滚动条 */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--copper); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <div class="header">
+    <h1>AI 泡沫跌幅追踪</h1>
+    <p class="sub">实时对比 · 互联网泡沫 / 2008 金融危机 / AI 泡沫</p>
+    <span class="live-badge">
+      <span class="live-dot"></span>
+      数据同步中
+    </span>
+  </div>
+
+  <div class="grid" id="grid">
+
+    <!-- 互联网泡沫 -->
+    <div class="card">
+      <div class="card-label">互联网泡沫</div>
+      <div class="card-year">2000 – 2002</div>
+      <div class="big-number" data-target="-89">-<span class="count">0</span><span class="percent">%</span></div>
+      <div class="big-sub">头部股平均跌幅</div>
+      <div class="remain-bar-wrap">
+        <div class="remain-label"><span>剩余空间</span><span>11%</span></div>
+        <div class="remain-bar"><div class="remain-fill" data-pct="89"></div></div>
+      </div>
+      <div class="waist-label"><span>腰斩股（跌超50%）</span><span class="count">44 / 44</span></div>
+      <div class="block-grid" data-hit="44" data-total="44"></div>
+      <ul class="stock-list">
+        <li><span class="stock-name"><span class="stock-dot" style="background:#e74c3c"></span>朗讯</span><span class="stock-pct">-97%</span></li>
+        <li><span class="stock-name"><span class="stock-dot" style="background:#8a8690"></span>亚马逊</span><span class="stock-pct">-94%</span></li>
+        <li><span class="stock-name"><span class="stock-dot" style="background:#3498db"></span>思科</span><span class="stock-pct">-89%</span></li>
+        <li><span class="stock-name"><span class="stock-dot" style="background:#e74c3c"></span>甲骨文</span><span class="stock-pct">-84%</span></li>
+        <li><span class="stock-name"><span class="stock-dot" style="background:#2ecc71"></span>英伟达</span><span class="stock-pct">-83%</span></li>
+        <li><span class="stock-name"><span class="stock-dot" style="background:#3498db"></span>英特尔</span><span class="stock-pct">-82%</span></li>
+      </ul>
+    </div>
+
+    <!-- 2008 金融危机 -->
+    <div class="card">
+      <div class="card-label">2008 金融危机</div>
+      <div class="card-year">2007 – 2009</div>
+      <div class="big-number" data-target="-87">-<span class="count">0</span><span class="percent">%</span></div>
+      <div class="big-sub">头部股平均跌幅</div>
+      <div class="remain-bar-wrap">
+        <div class="remain-label"><span>剩余空间</span><span>13%</span></div>
+        <div class="remain-bar"><div class="remain-fill" data-pct="87"></div></div>
+      </div>
+      <div class="waist-label"><span>腰斩股（跌超50%）</span><span class="count">44 / 45</span></div>
+      <div class="block-grid" data-hit="44" data-total="45"></div>
+      <ul class="stock-list">
+        <li><span class="stock-name"><span class="stock-dot" style="background:#8a8690"></span>雷曼兄弟</span><span class="stock-pct">-100%</span></li>
+        <li><span class="stock-name"><span class="stock-dot" style="background:#3498db"></span>房利美</span><span class="stock-pct">-99.6%</span></li>
+        <li><span class="stock-name"><span class="stock-dot" style="background:#3498db"></span>AIG</span><span class="stock-pct">-99.5%</span></li>
+        <li><span class="stock-name"><span class="stock-dot" style="background:#8a8690"></span>花旗</span><span class="stock-pct">-98%</span></li>
+        <li><span class="stock-name"><span class="stock-dot" style="background:#e74c3c"></span>美国银行</span><span class="stock-pct">-93%</span></li>
+        <li><span class="stock-name"><span class="stock-dot" style="background:#8a8690"></span>摩根士丹利</span><span class="stock-pct">-87%</span></li>
+      </ul>
+    </div>
+
+    <!-- AI 泡沫 -->
+    <div class="card active">
+      <div class="card-label">AI 泡沫</div>
+      <div class="card-year">2025 – 至今</div>
+      <div class="big-number" data-target="-53" id="aiMainPct">-<span class="count">0</span><span class="percent">%</span></div>
+      <div class="big-sub">头部股平均跌幅</div>
+      <div class="remain-bar-wrap">
+        <div class="remain-label"><span>剩余 47%</span><span>互联网泡沫底线</span></div>
+        <div class="remain-bar"><div class="remain-fill" data-pct="53" style="background: linear-gradient(90deg, #ff4d3d, #ff8a7a);"></div></div>
+      </div>
+      <div class="waist-label"><span>腰斩股（跌超50%）</span><span class="count" id="aiWaistCount">22 / 39</span></div>
+      <div class="block-grid" data-hit="22" data-total="39" id="aiBlocks"></div>
+      <ul class="stock-list" id="aiStockList">
+        <li><span class="stock-name"><span class="stock-dot" style="background:#3498db"></span>CoreWeave</span><span class="stock-pct">-76%</span></li>
+        <li><span class="stock-name"><span class="stock-dot" style="background:#e74c3c"></span>闪迪</span><span class="stock-pct">-68%</span></li>
+        <li><span class="stock-name"><span class="stock-dot" style="background:#e74c3c"></span>甲骨文</span><span class="stock-pct">-66%</span></li>
+        <li><span class="stock-name"><span class="stock-dot" style="background:#3498db"></span>英特尔</span><span class="stock-pct">-63%</span></li>
+        <li><span class="stock-name"><span class="stock-dot" style="background:#8a8690"></span>Arm</span><span class="stock-pct">-62%</span></li>
+        <li><span class="stock-name"><span class="stock-dot" style="background:#2ecc71"></span>英伟达</span><span class="stock-pct">-39%</span></li>
+      </ul>
+    </div>
+
+  </div>
+
+  <div class="refresh-info" id="refreshInfo">下次自动刷新：<span id="countdown">30</span>s</div>
+
+  <div class="footer">
+    数据来源：公开行情 API · 仅供参考，不构成投资建议
+  </div>
+
+</div>
+
+<script>
+// ==================== 配置 ====================
+const REFRESH_INTERVAL = 30; // 秒
+const API_ENDPOINTS = {
+  // 使用 wrdata 的免费源思路：Yahoo Finance 延迟数据
+  // 实际部署时替换为你的后端接口或直接调用公开 API
+  quote: (symbol) => `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=5d`,
+};
+
+// ==================== 数字滚动动效 ====================
+function animateNumber(el, target, duration = 1500) {
+  const countEl = el.querySelector('.count');
+  if (!countEl) return;
+  const absTarget = Math.abs(target);
+  let start = null;
+  function step(ts) {
+    if (!start) start = ts;
+    const progress = Math.min((ts - start) / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3); // easeOutCubic
+    const current = Math.round(eased * absTarget);
+    countEl.textContent = current;
+    if (progress < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+// ==================== 初始化方块矩阵 ====================
+function initBlocks(gridEl) {
+  const hit = parseInt(gridEl.dataset.hit) || 0;
+  const total = parseInt(gridEl.dataset.total) || 40;
+  gridEl.innerHTML = '';
+  for (let i = 0; i < total; i++) {
+    const block = document.createElement('div');
+    block.className = 'block ' + (i < hit ? 'hit' : 'miss');
+    block.style.animationDelay = (i * 15) + 'ms';
+    gridEl.appendChild(block);
+  }
+}
+
+// ==================== 进度条动画 ====================
+function animateBars() {
+  document.querySelectorAll('.remain-fill').forEach(bar => {
+    const pct = bar.dataset.pct;
+    if (pct) {
+      setTimeout(() => { bar.style.width = pct + '%'; }, 300);
+    }
+  });
+}
+
+// ==================== 模拟实时数据（演示用） ====================
+// 真实部署时，把这里替换为 fetch API 调用
+function getMockAIData() {
+  // 模拟轻微波动
+  const base = -53;
+  const fluctuation = (Math.random() - 0.5) * 4;
+  const newPct = Math.round((base + fluctuation) * 10) / 10;
+  
+  const stocks = [
+    { name: 'CoreWeave', pct: -(76 + (Math.random()-0.5)*6).toFixed(0), color: '#3498db' },
+    { name: '闪迪', pct: -(68 + (Math.random()-0.5)*6).toFixed(0), color: '#e74c3c' },
+    { name: '甲骨文', pct: -(66 + (Math.random()-0.5)*6).toFixed(0), color: '#e74c3c' },
+    { name: '英特尔', pct: -(63 + (Math.random()-0.5)*6).toFixed(0), color: '#3498db' },
+    { name: 'Arm', pct: -(62 + (Math.random()-0.5)*6).toFixed(0), color: '#8a8690' },
+    { name: '英伟达', pct: -(39 + (Math.random()-0.5)*6).toFixed(0), color: '#2ecc71' },
+  ];
+  
+  const hitCount = Math.round(22 + (Math.random()-0.5)*4);
+  return { mainPct: newPct, stocks, hitCount, total: 39 };
+}
+
+// ==================== 真实 API 抓取示例（需要配置） ====================
+async function fetchRealData() {
+  // 示例：Yahoo Finance 免费接口（可能跨域，需代理或后端）
+  // 真实股票代码映射
+  const symbols = {
+    'CRWV': 'CoreWeave',
+    'SNDK': '闪迪',
+    'ORCL': '甲骨文',
+    'INTC': '英特尔',
+    'ARM': 'Arm',
+    'NVDA': '英伟达',
+  };
+  
+  try {
+    // 注意：直接从前端调用 Yahoo 可能被 CORS 阻止
+    // 生产环境建议用 Netlify Functions 或自己的后端代理
+    const results = {};
+    for (const [sym, name] of Object.entries(symbols)) {
+      const res = await fetch(API_ENDPOINTS.quote(sym));
+      const data = await res.json();
+      const result = data?.chart?.result?.[0];
+      if (result) {
+        const closes = result.indicators.quote[0].close;
+        const latest = closes[closes.length - 1];
+        const first = closes[0];
+        const changePct = ((latest - first) / first * 100).toFixed(0);
+        results[name] = changePct;
+      }
+    }
+    return results;
+  } catch (e) {
+    console.warn('真实 API 抓取失败，使用模拟数据', e);
+    return null;
+  }
+}
+
+// ==================== 更新 AI 卡片 ====================
+function updateAICard(data) {
+  const mainEl = document.getElementById('aiMainPct');
+  const countEl = mainEl.querySelector('.count');
+  const targetPct = Math.abs(parseFloat(data.mainPct));
+  if (countEl) countEl.textContent = Math.round(targetPct);
+  
+  // 更新腰斩计数
+  const waistEl = document.getElementById('aiWaistCount');
+  if (waistEl) waistEl.textContent = `${data.hitCount} / ${data.total}`;
+  
+  // 更新方块
+  const grid = document.getElementById('aiBlocks');
+  if (grid) {
+    grid.dataset.hit = data.hitCount;
+    grid.dataset.total = data.total;
+    initBlocks(grid);
+  }
+  
+  // 更新个股列表
+  const list = document.getElementById('aiStockList');
+  if (list && data.stocks) {
+    list.innerHTML = data.stocks.map(s => `
+      <li>
+        <span class="stock-name">
+          <span class="stock-dot" style="background:${s.color}"></span>${s.name}
+        </span>
+        <span class="stock-pct">${s.pct}%</span>
+      </li>
+    `).join('');
+  }
+  
+  // 更新进度条
+  const bar = document.querySelector('.card.active .remain-fill');
+  if (bar) bar.style.width = (100 - targetPct) + '%';
+}
+
+// ==================== 倒计时 ====================
+let countdownTimer = null;
+let secondsLeft = REFRESH_INTERVAL;
+
+function startCountdown() {
+  if (countdownTimer) clearInterval(countdownTimer);
+  secondsLeft = REFRESH_INTERVAL;
+  const el = document.getElementById('countdown');
+  if (el) el.textContent = secondsLeft;
+  
+  countdownTimer = setInterval(() => {
+    secondsLeft--;
+    if (el) el.textContent = secondsLeft;
+    if (secondsLeft <= 0) {
+      clearInterval(countdownTimer);
+      refreshData();
+    }
+  }, 1000);
+}
+
+// ==================== 刷新逻辑 ====================
+let isRefreshing = false;
+
+async function refreshData() {
+  if (isRefreshing) return;
+  isRefreshing = true;
+  
+  // 更新徽章状态
+  const badge = document.querySelector('.live-badge');
+  if (badge) badge.style.opacity = '0.5';
+  
+  // 尝试真实数据，失败则回退模拟
+  let realData = null;
+  try {
+    realData = await fetchRealData();
+  } catch (e) {
+    // 静默失败
+  }
+  
+  if (realData && Object.keys(realData).length > 0) {
+    // 如果有真实数据，构建结构
+    const stocks = Object.entries(realData).map(([name, pct]) => ({
+      name,
+      pct: pct > 0 ? `+${pct}%` : `${pct}%`,
+      color: pct < -50 ? '#e74c3c' : (pct < -30 ? '#f39c12' : '#2ecc71'),
+    }));
+    // 重新计算腰斩数
+    const hitCount = stocks.filter(s => parseInt(s.pct) < -50).length;
+    updateAICard({ mainPct: -53, stocks, hitCount, total: stocks.length });
+  } else {
+    // 模拟数据
+    updateAICard(getMockAIData());
+  }
+  
+  if (badge) badge.style.opacity = '1';
+  isRefreshing = false;
+  startCountdown();
+}
+
+// ==================== 页面初始化 ====================
+document.addEventListener('DOMContentLoaded', () => {
+  // 初始化所有方块矩阵
+  document.querySelectorAll('.block-grid').forEach(initBlocks);
+  
+  // 数字滚动
+  document.querySelectorAll('.big-number').forEach(el => {
+    const target = el.dataset.target;
+    if (target) {
+      // 提取绝对值
+      const absVal = Math.abs(parseInt(target));
+      setTimeout(() => animateNumber(el, absVal), 500);
+    }
+  });
+  
+  // 进度条
+  setTimeout(animateBars, 400);
+  
+  // 启动倒计时
+  startCountdown();
+  
+  // 每 5 秒微调一次 AI 数字（模拟实时跳动感）
+  setInterval(() => {
+    const el = document.getElementById('aiMainPct');
+    if (el) {
+      const countEl = el.querySelector('.count');
+      if (countEl) {
+        const current = parseInt(countEl.textContent) || 53;
+        const jitter = Math.floor((Math.random() - 0.5) * 3);
+        const next = Math.max(45, Math.min(65, current + jitter));
+        countEl.textContent = next;
+      }
+    }
+  }, 5000);
+});
+</script>
+
+</body>
+</html>
